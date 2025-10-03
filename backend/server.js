@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 
@@ -115,56 +116,35 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// FIXED: Register endpoint - properly saves new users
+// Register endpoint
 app.post('/api/auth/register', (req, res) => {
   const { name, email, password, role, faculty } = req.body;
-  
-  console.log('📝 REGISTRATION ATTEMPT:', { name, email, role });
-  console.log('📋 CURRENT USERS BEFORE:', users.map(u => u.email));
-  
-  // Simple validation
+
   if (!name || !email || !password || !role) {
-    return res.status(400).json({
-      success: false,
-      message: 'All fields are required'
-    });
-  }
-  
-  if (password.length < 6) {
-    return res.status(400).json({
-      success: false,
-      message: 'Password must be at least 6 characters'
-    });
+    return res.status(400).json({ success: false, message: 'All fields are required' });
   }
 
-  // Check if user already exists
+  if (password.length < 6) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+  }
+
   const existingUser = users.find(user => user.email === email);
   if (existingUser) {
-    return res.status(400).json({
-      success: false,
-      message: 'User already exists with this email'
-    });
+    return res.status(400).json({ success: false, message: 'User already exists with this email' });
   }
 
-  // Create new user
   const newUser = {
-    id: Date.now(), // Use timestamp for unique ID
+    id: Date.now(),
     name: name.trim(),
     email: email.trim().toLowerCase(),
-    password: password,
-    role: role,
+    password,
+    role,
     faculty: faculty || 'Faculty of ICT',
     created_at: new Date().toISOString()
   };
 
-  // Add to users array
   users.push(newUser);
 
-  console.log('✅ NEW USER REGISTERED:', newUser);
-  console.log('📋 CURRENT USERS AFTER:', users.map(u => u.email));
-  console.log('👥 TOTAL USERS NOW:', users.length);
-
-  // Return success
   res.status(201).json({
     success: true,
     message: 'Registration successful! You can now login.',
@@ -180,24 +160,14 @@ app.post('/api/auth/register', (req, res) => {
   });
 });
 
-// FIXED: Login endpoint - works with newly registered users
+// Login endpoint
 app.post('/api/auth/login', (req, res) => {
   const { email, password, role } = req.body;
-  
-  console.log('🔐 LOGIN ATTEMPT:', { email, password, role });
-  console.log('📋 ALL REGISTERED USERS:', users.map(u => ({ email: u.email, role: u.role })));
-  
-  // Normalize email for comparison
+
   const normalizedEmail = email.trim().toLowerCase();
-  
-  // Find user by email and password
-  const user = users.find(u => 
-    u.email.toLowerCase() === normalizedEmail && 
-    u.password === password
-  );
-  
+  const user = users.find(u => u.email.toLowerCase() === normalizedEmail && u.password === password);
+
   if (user) {
-    console.log('✅ LOGIN SUCCESS for user:', user.email);
     res.json({
       success: true,
       message: 'Login successful!',
@@ -213,55 +183,20 @@ app.post('/api/auth/login', (req, res) => {
       }
     });
   } else {
-    console.log('❌ LOGIN FAILED');
-    res.status(400).json({
-      success: false,
-      message: 'Invalid email or password. Please check your credentials.'
-    });
+    res.status(400).json({ success: false, message: 'Invalid email or password.' });
   }
 });
 
-// Debug endpoint to see all users
+// Debug endpoint
 app.get('/api/debug/users', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      totalUsers: users.length,
-      users: users.map(user => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        faculty: user.faculty,
-        password: user.password
-      }))
-    }
-  });
+  res.json({ success: true, data: { totalUsers: users.length, users } });
 });
 
-// Get all users (for testing)
-app.get('/api/auth/users', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      users: users.map(user => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        faculty: user.faculty
-      }))
-    }
-  });
-});
-
-// Mock reports endpoints
+// Reports endpoints
 app.get('/api/reports', (req, res) => {
   const { search } = req.query;
-  
   let reports = mockReports;
-  
-  // Simple search filter
+
   if (search) {
     reports = mockReports.filter(report => 
       report.course_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -269,102 +204,61 @@ app.get('/api/reports', (req, res) => {
       report.topic_taught.toLowerCase().includes(search.toLowerCase())
     );
   }
-  
-  res.json({
-    success: true,
-    data: {
-      reports,
-      pagination: {
-        page: 1,
-        limit: 10,
-        total: reports.length,
-        pages: 1
-      }
-    }
-  });
+
+  res.json({ success: true, data: { reports, pagination: { page: 1, limit: 10, total: reports.length, pages: 1 } } });
 });
 
-// Mock create report
 app.post('/api/reports', (req, res) => {
-  const reportData = req.body;
-  
-  const newReport = {
-    id: mockReports.length + 1,
-    ...reportData,
-    status: 'pending',
-    created_at: new Date().toISOString()
-  };
-  
+  const newReport = { id: mockReports.length + 1, ...req.body, status: 'pending', created_at: new Date().toISOString() };
   mockReports.push(newReport);
-  
-  res.status(201).json({
-    success: true,
-    message: 'Report created successfully',
-    data: {
-      report: newReport
-    }
-  });
+  res.status(201).json({ success: true, message: 'Report created successfully', data: { report: newReport } });
 });
 
-// Mock export reports
 app.get('/api/reports/export', (req, res) => {
-  // Simple CSV export
   const csvHeaders = 'Week,Date,Faculty,Class,Course,Lecturer,Students Present,Total Students,Topic,Status\n';
-  
   const csvData = mockReports.map(report => 
     `Week ${report.week_of_reporting},${report.date_of_lecture},${report.faculty_name},${report.class_name},${report.course_name},${report.lecturer_name},${report.actual_students_present},${report.total_registered_students},"${report.topic_taught}",${report.status}`
   ).join('\n');
-  
-  const csvContent = csvHeaders + csvData;
-  
+
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename=luct-reports.csv');
-  res.send(csvContent);
+  res.send(csvHeaders + csvData);
 });
 
-// Mock courses
+// Courses
 app.get('/api/courses', (req, res) => {
   const courses = [
     { id: 1, course_code: 'DIWA2110', course_name: 'Web Application Development', credits: 3 },
     { id: 2, course_code: 'DBS2110', course_name: 'Database Systems', credits: 3 },
     { id: 3, course_code: 'SE2110', course_name: 'Software Engineering', credits: 3 }
   ];
-  
-  res.json({
-    success: true,
-    data: { courses }
-  });
+  res.json({ success: true, data: { courses } });
 });
 
-// Mock classes
+// Classes
 app.get('/api/classes', (req, res) => {
   const classes = [
     { id: 1, class_name: 'IT-2023-A', faculty_name: 'Faculty of ICT', total_registered_students: 30, venue: 'Room 101' },
     { id: 2, class_name: 'BIT-2023-B', faculty_name: 'Faculty of ICT', total_registered_students: 32, venue: 'Room 205' }
   ];
-  
-  res.json({
-    success: true,
-    data: { classes }
-  });
+  res.json({ success: true, data: { classes } });
 });
 
-// Handle 404
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found: ' + req.originalUrl
-  });
+// ========================
+// Serve React frontend
+// ========================
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
 });
 
-// Error handling middleware
+// ========================
+// Error handling
+// ========================
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(500).json({
-    success: false,
-    message: 'Something went wrong!',
-    error: err.message
-  });
+  res.status(500).json({ success: false, message: 'Something went wrong!', error: err.message });
 });
 
 const PORT = process.env.PORT || 5000;
